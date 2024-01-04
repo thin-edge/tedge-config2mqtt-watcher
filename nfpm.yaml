@@ -41,8 +41,8 @@ scripts:
 
 contents:
   # executable
-  - src: ./src/config2mqtt-watcher
-    dst: /usr/bin/config2mqtt-watcher
+  - src: ./src/tedge-config2mqtt-watcher
+    dst: /usr/bin/tedge-config2mqtt-watcher
     file_info:
       mode: 0755
   
