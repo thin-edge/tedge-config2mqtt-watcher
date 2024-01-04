@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""thin-edge.io configuration file watcher"""
+import json
+import logging
+import time
+from pathlib import Path
+from collections import namedtuple
+
+import toml
+from paho.mqtt.publish import multiple as publish_multiple
+
+# Use PollingObserver as it works even if the inode is changed that the path is pointing to
+from watchdog.observers.polling import PollingObserver as Observer
+from watchdog.events import LoggingEventHandler
+
+
+# Set sensible logging defaults
+LOG = logging.getLogger()
+LOG.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
+LOG.addHandler(handler)
+
+BROKER_HOST = "localhost"
+BROKER_PORT = 1883
+CLIENT_ID = "tedge-config2mqtt-watcher#te/device/main"
+BASE_DIR = Path("/etc/tedge")
+CONFIG_FILE = BASE_DIR / "tedge.toml"
+BASE_TOPIC = "config/"
+
+
+Event = namedtuple('Event', ['src_path'])
+
+
+def publish_config(event):
+    """On modified handler"""
+    try:
+        config = toml.loads(Path(event.src_path).read_text(encoding="utf-8"))
+
+        msgs = [
+            {
+                "topic": f"{BASE_TOPIC}{section_name}",
+                "payload": json.dumps(section_value, separators=(',', ':'), sort_keys=True),
+                "qos": 1,
+                "retain": True,
+            }
+            for section_name, section_value in config.items()
+        ]
+
+        # publish using a once off MQTT client
+        if msgs:
+            LOG.info("Publishing new configuration values")
+            publish_multiple(msgs, hostname=BROKER_HOST, port=BROKER_PORT, client_id=CLIENT_ID)
+    except Exception as ex:
+        LOG.warning("Unexpected error whilst processing file modified event. %s", ex, exc_info=True)
+
+def wait_for_broker():
+    """Wait for the MQTT Broker to be reachable
+    """
+    while True:
+        try:
+            publish_multiple([{"topic": "config/_meta", "payload": "", "qos": 0}])
+            break
+        except Exception as ex:
+            LOG.warning("MQTT Broker not available. %s", ex)
+        time.sleep(5)
+    LOG.info("MQTT Broker is available")
+
+def main(config_file):
+    """Subscribe to file events and register handler to publish the thin-edge.io
+    config file changes as MQTT messages
+    """
+    LOG.info("Configuring file watcher on %s", config_file)
+
+    # Run on first load so there are default values
+    publish_config(Event(config_file))
+
+    event_handler = LoggingEventHandler()
+    event_handler.on_created = publish_config
+    event_handler.on_modified = publish_config
+    observer = Observer()
+    observer.schedule(event_handler, config_file, recursive=False)
+    observer.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+        observer.join()
+
+
+if __name__ == "__main__":
+    # Wait for config file to exist before watching the file
+    while not CONFIG_FILE.exists():
+        LOG.warning(
+            "Configuration file does not exist. Waiting 10s before checking again. path=%s",
+            CONFIG_FILE,
+        )
+        time.sleep(10)
+
+    wait_for_broker()
+    main(CONFIG_FILE)

@@ -1,0 +1,13 @@
+[Unit]
+Description=config2mqtt watcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=root
+ExecStart=/usr/bin/tedge-config2mqtt-watcher
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

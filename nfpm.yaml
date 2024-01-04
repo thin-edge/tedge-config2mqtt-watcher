@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/static/schema.json
+---
+name: config2mqtt-watcher
+arch: all
+platform: linux
+version: ${SEMVER}
+section: misc
+priority: optional
+maintainer: Community <community@thin-edge.io>
+description: thin-edge.io RHE Linux Package manager plugin to managed dnf packages
+vendor: thin-edge.io
+homepage: https://github.com/thin-edge/tedge-rpm-plugin
+license: Apache License 2.0
+apk:
+  # Use noarch instead of "all"
+  arch: noarch
+
+overrides:
+  deb:
+    depends:
+      - python3
+      - python3-paho-mqtt
+      - python3-toml
+      - python3-watchdog
+  rpm:
+    depends:
+      - python3
+      - python3-paho-mqtt
+      - python3-toml
+      - python3-watchdog
+  apk:
+    depends:
+      - python3
+      - py3-paho-mqtt
+      - py3-toml
+      - py3-watchdog
+
+scripts:
+  postinstall: src/scripts/post-install
+  preremove: src/scripts/pre-remove
+
+contents:
+  # executable
+  - src: ./src/config2mqtt-watcher
+    dst: /usr/bin/config2mqtt-watcher
+    file_info:
+      mode: 0755
+  
+  # systemd service definition
+  - src: ./src/services/systemd/tedge-config2mqtt-watcher.service
+    dst: /lib/systemd/system/
+    file_info:
+      mode: 0644
+    packager: deb
+
+  - src: ./src/services/systemd/tedge-config2mqtt-watcher.service
+    dst: /lib/systemd/system/
+    file_info:
+      mode: 0644
+    packager: rpm
