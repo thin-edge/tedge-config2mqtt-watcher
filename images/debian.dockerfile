@@ -1,4 +1,4 @@
-FROM ghcr.io/thin-edge/tedge-demo-main-systemd:20231221.1
+FROM ghcr.io/thin-edge/tedge-demo-main-systemd:latest
  
 # install plugins
 COPY ./dist/*.deb /tmp/
